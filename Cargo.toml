@@ -1,0 +1,11 @@
+[package]
+name = "ternary-fitness"
+version = "0.1.0"
+edition = "2021"
+description = "Fitness landscape analysis for ternary agent systems {-1, 0, +1}"
+license = "MIT"
+repository = "https://github.com/SuperInstance/ternary-fitness"
+keywords = ["ternary", "fitness", "landscape", "evolutionary", "agent"]
+categories = ["science", "algorithms"]
+
+[dependencies]
