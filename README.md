@@ -68,6 +68,15 @@ Binary strategies are well-studied in evolutionary biology (Kauffman's NK landsc
 2. **Saddle points** — more common due to the flat middle
 3 **Basin complexity** — larger basins with more internal structure
 
+## See Also
+
+- **ternary-ga** — Genetic algorithms with ternary genomes
+- **ternary-genome** — Genetic encoding and expression for ternary populations
+- **ternary-popgen** — Population genetics for ternary agents
+- **ternary-evolution-advanced** — Advanced evolutionary optimization
+- **ternary-gradient** — Gradient-based optimization on ternary landscapes
+- **ternary-sandbox** — Sandboxed evaluation environments for ternary agents
+
 ## License
 
 MIT
