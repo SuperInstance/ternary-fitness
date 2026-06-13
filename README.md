@@ -1,81 +1,84 @@
-# ternary-fitness
+# Ternary Fitness — Landscape Analysis for Ternary Agent Strategy Evolution
 
-Fitness landscape analysis for **ternary agent systems** — strategies composed of choices from {-1, 0, +1}.
+**Ternary Fitness** analyzes the fitness landscape of ternary strategy spaces — the set of all possible strategies where each decision dimension takes a value in {-1, 0, +1}. It provides exhaustive landscape enumeration, topology analysis (peaks, valleys, saddles), Pareto front computation for multi-objective optimization, and entropy measures of the strategy distribution.
 
-## What is a Ternary Fitness Landscape?
+## Why It Matters
 
-A ternary fitness landscape maps every possible strategy (a sequence of -1, 0, or +1 choices) to a fitness value. Unlike binary landscapes (0/1), ternary landscapes introduce a **neutral middle ground** (0), creating richer topology:
+Evolutionary optimization is only as good as the landscape it explores. If the landscape is smooth with a single peak, any hill-climbing algorithm works. If it's rugged with many local optima, the search strategy matters enormously. For ternary agents, the landscape is discrete: each strategy is a vector of trits, and the landscape size is 3ⁿ for n decision dimensions. This crate exhaustively characterizes these landscapes — finding all peaks, detecting saddle points, measuring ruggedness — enabling informed choices about which optimization algorithm to use and which strategies are evolutionarily stable.
 
-- **Peaks**: Local maxima where no single-mutation neighbor has higher fitness
-- **Basins**: Regions that drain toward the same local optimum
-- **Saddle points**: Points between peaks where multiple uphill directions exist
-- **Neutral networks**: Connected regions of equal fitness (from the 0 element)
+## How It Works
+
+### Exhaustive Search
+
+For small strategy spaces (n ≤ 15, giving ≤ 14,348,907 strategies), the `ExhaustiveSearch` evaluator computes fitness for every possible ternary strategy. This gives the complete landscape — no sampling bias, no missed peaks. The evaluator runs in O(3ⁿ) time.
+
+### Landscape Topology
+
+The `FitnessLandscape` analysis identifies:
+
+- **Peaks**: Strategies with higher fitness than all 2n Hamming-1 neighbors
+- **Valleys**: Strategies with lower fitness than all neighbors
+- **Saddle points**: Strategies that are local maxima in some directions but not all
+- **Plateaus**: Connected regions of equal fitness
+
+The number of peaks measures landscape ruggedness: more peaks = harder optimization.
+
+### Pareto Fronts
+
+For multi-objective fitness (e.g., accuracy vs. efficiency), the `ParetoFront` identifies non-dominated strategies — those where no other strategy is better on all objectives. The Pareto front size measures how many trade-off options exist.
+
+### Entropy
+
+Strategy distribution entropy:
+
+```
+H = -Σ p(s) · log p(s)   over strategies s
+```
+
+High entropy means strategies are uniformly distributed (diverse population); low entropy means concentration on few strategies. This connects to fleet diversity management.
 
 ## Quick Start
 
 ```rust
-use ternary_fitness::*;
+use ternary_fitness::{FitnessEvaluator, ExhaustiveSearch, FitnessLandscape, TernaryStrategy};
 
-// Define an environment with 3 states, each with rewards for actions {-1, 0, +1}
-let env = Environment::from_rows(&[
-    [1.0, 0.5, 2.0],  // state 0: +1 is best
-    [3.0, 1.0, 0.0],  // state 1: -1 is best
-    [0.0, 4.0, 1.0],  // state 2: 0 is best
-]);
+// Define a fitness function
+let evaluator = FitnessEvaluator::new(|s: &TernaryStrategy| {
+    s.values().iter().map(|&v| v as f64).sum() // simple: maximize sum
+});
 
-// Evaluate a strategy
-let strategy = TernaryStrategy::new(vec![1, -1, 0]);
-let fitness = FitnessEvaluator::evaluate(&strategy, &env);
-assert_eq!(fitness, 9.0); // 2.0 + 3.0 + 4.0
+// Exhaustively evaluate all 3^5 = 243 strategies
+let search = ExhaustiveSearch::new(5, evaluator);
+let landscape = FitnessLandscape::from_search(&search);
 
-// Enumerate all 3^n strategies
-let landscape = FitnessLandscape::build(&env);
-println!("Global optimum fitness: {}", landscape.global_peak().unwrap().fitness);
-println!("Number of peaks: {}", landscape.peaks().len());
+println!("Peaks: {}", landscape.peaks().len());
+println!("Best fitness: {}", landscape.best_fitness());
 ```
 
-## Core Concepts
+```bash
+cargo add ternary-fitness
+```
 
-### TernaryStrategy
-A sequence of choices from {-1, 0, +1}. Strategies are mutated by changing one element at a time, giving each strategy `2n` neighbors (two choices per position).
+## API
 
-### Environment
-A reward matrix: `reward[state][action]` where action index maps to {-1, 0, +1}. Fitness is the cumulative reward across all states.
+| Type / Function | Description |
+|---|---|
+| `TernaryStrategy` | Vector of {-1, 0, +1} decisions |
+| `FitnessEvaluator` | Wraps a fitness function `&Strategy → f64` |
+| `ExhaustiveSearch` | Evaluates all 3ⁿ strategies |
+| `FitnessLandscape` | Peaks, valleys, saddles, plateaus |
+| `ParetoFront` | Non-dominated strategies |
+| `Entropy` | Strategy distribution entropy |
 
-### FitnessLandscape
-The complete landscape over all `3^n` strategies. Provides:
-- **Peaks**: All local optima (no neighbor has higher fitness)
-- **Basins**: Attraction regions for each peak
-- **Saddle points**: Points adjacent to multiple peaks
-- **Global optimum**: The highest-fitness strategy
+## Architecture Notes
 
-### ParetoFront
-Multi-objective optimization across:
-- **Reward**: Cumulative environment reward
-- **Diversity**: Shannon entropy of the strategy
-- **Speed**: Number of non-zero actions (fewer = faster)
+Fitness landscapes model the evolutionary dynamics of **SuperInstance** agent strategies. The γ + η = C conservation law constrains the landscape: strategies that maximize γ (growth) necessarily increase η (entropy cost), and the Pareto front traces the γ-η trade-off curve. Evolution on this landscape drives the fleet toward Pareto-optimal strategies. See [Architecture](https://github.com/SuperInstance/SuperInstance/blob/main/ARCHITECTURE.md).
 
-### Entropy
-Shannon entropy measures strategy randomness:
-- Maximum entropy (log₂ 3 ≈ 1.585) when all three values appear equally
-- Zero entropy when all choices are identical
+## References
 
-## Why Ternary?
-
-Binary strategies are well-studied in evolutionary biology (Kauffman's NK landscapes). Ternary strategies add a **third option** — neither attack nor retreat, neither buy nor sell, neither cooperate nor defect. This middle ground creates:
-
-1. **Neutral networks** — paths of equal fitness enabling drift
-2. **Saddle points** — more common due to the flat middle
-3 **Basin complexity** — larger basins with more internal structure
-
-## See Also
-
-- **ternary-ga** — Genetic algorithms with ternary genomes
-- **ternary-genome** — Genetic encoding and expression for ternary populations
-- **ternary-popgen** — Population genetics for ternary agents
-- **ternary-evolution-advanced** — Advanced evolutionary optimization
-- **ternary-gradient** — Gradient-based optimization on ternary landscapes
-- **ternary-sandbox** — Sandboxed evaluation environments for ternary agents
+- Wright, Sewall. "The Roles of Mutation, Inbreeding, Crossbreeding, and Selection in Evolution," *Proc. 6th Int. Cong. Gen.*, 1932 — fitness landscapes.
+- Kauffman, Stuart. *The Origins of Order*, Oxford UP, 1993 — NK landscapes and ruggedness.
+- Deb, Kalyanmoy. *Multi-Objective Optimization Using Evolutionary Algorithms*, Wiley, 2001 — Pareto fronts.
 
 ## License
 
