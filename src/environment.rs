@@ -42,8 +42,8 @@ impl Environment {
     ///
     /// `action` must be in `{-1, 0, +1}` and `state` must be `< num_states()`.
     /// Other values will trigger an out-of-bounds panic — this is treated as
-    /// a programming error since [`TernaryStrategy`] only ever holds valid
-    /// ternary values.
+    /// a programming error since [`crate::TernaryStrategy`] only ever holds
+    /// valid ternary values.
     pub fn reward(&self, state: usize, action: i8) -> f64 {
         let idx = (action + 1) as usize; // -1→0, 0→1, +1→2
         self.rewards[state][idx]
@@ -95,5 +95,21 @@ mod tests {
     fn test_default() {
         let env = Environment::default();
         assert_eq!(env.num_states(), 0);
+    }
+
+    /// `state_rewards` returns the raw `[r(-1), r(0), r(+1)]` triple.
+    #[test]
+    fn test_state_rewards() {
+        let env = Environment::from_rows(&[[1.0, 2.0, 3.0]]);
+        assert_eq!(env.state_rewards(0), [1.0, 2.0, 3.0]);
+    }
+
+    /// Edge case: empty environment has zero states and `from_rows(&[])` is legal.
+    #[test]
+    fn test_empty_environment() {
+        let env = Environment::from_rows(&[]);
+        assert_eq!(env.num_states(), 0);
+        let env2 = Environment::new();
+        assert_eq!(env2.num_states(), 0);
     }
 }

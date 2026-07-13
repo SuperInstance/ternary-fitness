@@ -146,4 +146,85 @@ mod tests {
         let norm = Entropy::normalized_entropy(&s);
         assert!((norm - 1.0).abs() < 1e-10);
     }
+
+    /// Edge case: empty strategy. Entropy is 0 (no information), and
+    /// `normalized_entropy` is 0/0 in spirit but the impl guards the divide.
+    #[test]
+    fn test_entropy_empty_strategy() {
+        let s = TernaryStrategy::new(vec![]);
+        assert_eq!(Entropy::strategy_entropy(&s), 0.0);
+        assert_eq!(Entropy::normalized_entropy(&s), 0.0);
+    }
+
+    /// Edge case: single-choice strategy. One symbol ⇒ entropy 0.
+    #[test]
+    fn test_entropy_single_choice() {
+        let s = TernaryStrategy::new(vec![0]);
+        assert_eq!(Entropy::strategy_entropy(&s), 0.0);
+    }
+
+    /// Edge case: all-identical population reports 0 diversity.
+    #[test]
+    fn test_population_diversity_all_identical() {
+        let s = TernaryStrategy::new(vec![-1, 0, 1]);
+        assert_eq!(
+            Entropy::population_diversity(&[s.clone(), s.clone(), s.clone()]),
+            0.0
+        );
+    }
+
+    /// Edge case: unequal-length strategies. Hamming distance zips only to
+    /// the shorter length — verify the documented behavior so it doesn't
+    /// silently change.
+    #[test]
+    fn test_hamming_distance_unequal_length() {
+        let a = TernaryStrategy::new(vec![-1, 0, 1]);
+        let b = TernaryStrategy::new(vec![-1, 0]);
+        // zip stops at min(3, 2) = 2; both positions agree ⇒ distance 0.
+        assert_eq!(Entropy::hamming_distance(&a, &b), 0.0);
+
+        let c = TernaryStrategy::new(vec![1, 0]);
+        // pos 0 differs (-1 vs 1), pos 1 agrees ⇒ distance 1.
+        assert_eq!(Entropy::hamming_distance(&a, &c), 1.0);
+    }
+
+    /// Worked-example check of `population_diversity`:
+    /// strategies [1,-1,0], [-1,0,1], [0,0,0].
+    /// Pairs:
+    ///   [1,-1,0] vs [-1,0,1]: 3 differences
+    ///   [1,-1,0] vs [0,0,0]:  2 differences
+    ///   [-1,0,1] vs [0,0,0]:  2 differences
+    /// Mean = (3 + 2 + 2) / 3 = 7/3 ≈ 2.3333
+    #[test]
+    fn test_population_diversity_worked_example() {
+        let pop = [
+            TernaryStrategy::new(vec![1, -1, 0]),
+            TernaryStrategy::new(vec![-1, 0, 1]),
+            TernaryStrategy::new(vec![0, 0, 0]),
+        ];
+        let got = Entropy::population_diversity(&pop);
+        assert!((got - 7.0 / 3.0).abs() < 1e-12, "got {got}");
+    }
+
+    /// Hand-computed Shannon entropy for [-1, 0, 0, 1, 1, 1]:
+    /// p(-1)=1/6, p(0)=2/6, p(+1)=3/6.
+    /// H = -(1/6 log2 1/6 + 2/6 log2 2/6 + 3/6 log2 3/6) ≈ 1.4591 bits.
+    #[test]
+    fn test_entropy_hand_computed_six_choices() {
+        let s = TernaryStrategy::new(vec![-1, 0, 0, 1, 1, 1]);
+        let p = |k: f64| -k * k.log2();
+        let expected = p(1.0 / 6.0) + p(2.0 / 6.0) + p(3.0 / 6.0);
+        assert!((Entropy::strategy_entropy(&s) - expected).abs() < 1e-12);
+        // And it must respect the 0 ≤ H ≤ log2(3) bound.
+        let h = Entropy::strategy_entropy(&s);
+        assert!(h >= 0.0 && h <= Entropy::max_entropy() + 1e-12);
+    }
+
+    /// `normalized_entropy` ∈ [0, 1] for an arbitrary unbalanced strategy.
+    #[test]
+    fn test_normalized_entropy_in_unit_interval() {
+        let s = TernaryStrategy::new(vec![-1, -1, 0, 1, 1, 1]);
+        let n = Entropy::normalized_entropy(&s);
+        assert!((0.0..=1.0).contains(&n));
+    }
 }

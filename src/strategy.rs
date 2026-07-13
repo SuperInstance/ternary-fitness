@@ -168,4 +168,36 @@ mod tests {
         let s = TernaryStrategy::new(vec![-1, 0, 1]);
         assert!(s.with_mutation(0, -1).is_none());
     }
+
+    /// Edge case: an empty strategy has no Hamming-1 neighbors.
+    #[test]
+    fn test_neighbors_empty_strategy() {
+        let s = TernaryStrategy::new(vec![]);
+        assert!(s.neighbors().is_empty());
+    }
+
+    /// Edge case: `with_mutation` rejects out-of-bounds positions.
+    #[test]
+    fn test_with_mutation_out_of_bounds() {
+        let s = TernaryStrategy::new(vec![0]);
+        assert!(s.with_mutation(5, 1).is_none());
+    }
+
+    /// Edge case: `get` returns None for out-of-bounds indices.
+    #[test]
+    fn test_get_out_of_bounds() {
+        let s = TernaryStrategy::new(vec![0]);
+        assert_eq!(s.get(0), Some(0));
+        assert_eq!(s.get(1), None);
+    }
+
+    /// Display formats negative / zero / positive as `-`, `0`, `+`.
+    #[test]
+    fn test_display_empty_and_full() {
+        assert_eq!(format!("{}", TernaryStrategy::new(vec![])), "[]");
+        assert_eq!(
+            format!("{}", TernaryStrategy::new(vec![-1, 0, 1, -1, 1])),
+            "[-, 0, +, -, +]"
+        );
+    }
 }
