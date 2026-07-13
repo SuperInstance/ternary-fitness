@@ -372,10 +372,7 @@ mod tests {
             .find(|s| s.strategy == s_target)
             .expect("expected [0, +1] to be a saddle");
         assert!(
-            saddle
-                .adjacent_peaks
-                .iter()
-                .any(|s| s.choices() == [-1, 1]),
+            saddle.adjacent_peaks.iter().any(|s| s.choices() == [-1, 1]),
             "saddle [0, +1] should be adjacent to peak [-1, +1]"
         );
         assert!(

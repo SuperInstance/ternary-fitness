@@ -94,7 +94,10 @@ impl std::fmt::Display for TernaryStrategy {
                 -1 => "-",
                 0 => "0",
                 1 => "+",
-                _ => "?",
+                // Constructors enforce {-1, 0, +1}; reaching here means an
+                // invariant was violated by `new_unchecked`. Surface it as
+                // a panic rather than silently rendering '?'.
+                _ => unreachable!("invalid ternary value {c}; must be -1, 0, or +1"),
             })
             .collect();
         write!(f, "[{}]", display.join(", "))

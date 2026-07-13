@@ -45,6 +45,14 @@ impl Environment {
     /// a programming error since [`crate::TernaryStrategy`] only ever holds
     /// valid ternary values.
     pub fn reward(&self, state: usize, action: i8) -> f64 {
+        // Explicit contract check. The cast `(action + 1) as usize` would
+        // silently wrap on negative out-of-contract actions (e.g. -2 wraps
+        // to usize::MAX) and then panic with a confusing index-out-of-bounds
+        // message; this surfaces the real bug at the boundary.
+        debug_assert!(
+            action == -1 || action == 0 || action == 1,
+            "action must be in {{-1, 0, +1}}, got {action}"
+        );
         let idx = (action + 1) as usize; // -1→0, 0→1, +1→2
         self.rewards[state][idx]
     }
