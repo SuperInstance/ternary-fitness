@@ -13,11 +13,15 @@ pub enum Objective {
     Speed,
 }
 
-/// A solution on the Pareto front.
+/// A solution on the Pareto front: a strategy together with its scores on
+/// each objective that the front was computed for.
 #[derive(Clone, Debug)]
 pub struct ParetoSolution {
+    /// The strategy this solution represents.
     pub strategy: TernaryStrategy,
+    /// Cumulative reward under the environment.
     pub reward: f64,
+    /// Shannon entropy of the strategy's choice distribution, in bits.
     pub diversity: f64,
     /// Speed score: strategy length - active_count (more zeros = faster).
     pub speed: usize,
@@ -97,10 +101,7 @@ mod tests {
     use super::*;
 
     fn test_env() -> Environment {
-        Environment::from_rows(&[
-            [1.0, 0.5, 2.0],
-            [3.0, 1.0, 0.0],
-        ])
+        Environment::from_rows(&[[1.0, 0.5, 2.0], [3.0, 1.0, 0.0]])
     }
 
     #[test]
@@ -114,7 +115,7 @@ mod tests {
     fn test_pareto_front_reward_and_diversity() {
         let front = ParetoFront::compute(&test_env(), &[Objective::Reward, Objective::Diversity]);
         // Should have multiple solutions trading off reward vs diversity
-        assert!(front.len() >= 1);
+        assert!(!front.is_empty());
         // The max-reward solution should be on the front
         // Best reward: [1,-1] = 2+3 = 5
         assert!(front.iter().any(|s| s.reward == 5.0));
@@ -126,15 +127,12 @@ mod tests {
             &test_env(),
             &[Objective::Reward, Objective::Diversity, Objective::Speed],
         );
-        assert!(front.len() >= 1);
+        assert!(!front.is_empty());
     }
 
     #[test]
     fn test_no_dominated_solutions() {
-        let front = ParetoFront::compute(
-            &test_env(),
-            &[Objective::Reward, Objective::Diversity],
-        );
+        let front = ParetoFront::compute(&test_env(), &[Objective::Reward, Objective::Diversity]);
         for i in 0..front.len() {
             for j in 0..front.len() {
                 if i != j {

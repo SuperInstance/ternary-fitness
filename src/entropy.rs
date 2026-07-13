@@ -34,15 +34,17 @@ impl Entropy {
         3.0_f64.log2()
     }
 
-    /// Compute population diversity as the average pairwise entropy distance.
+    /// Compute population diversity as the average pairwise Hamming distance.
     ///
-    /// Measures how diverse a set of strategies is.
+    /// Returns 0.0 for populations of size 0 or 1. For larger populations,
+    /// averages the Hamming distance over every unordered pair of distinct
+    /// strategies — so two identical strategies contribute 0 to the average
+    /// and an all-identical population reports 0 diversity.
     pub fn population_diversity(strategies: &[crate::TernaryStrategy]) -> f64 {
         if strategies.len() <= 1 {
             return 0.0;
         }
 
-        let _n = strategies.len() as f64;
         let mut total_distance = 0.0;
         let mut count = 0;
 

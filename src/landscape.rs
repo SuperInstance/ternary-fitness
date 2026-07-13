@@ -3,10 +3,12 @@
 use crate::{Environment, FitnessEvaluator, TernaryStrategy};
 use std::collections::HashMap;
 
-/// A point in the fitness landscape.
+/// A point in the fitness landscape: a strategy paired with its evaluated fitness.
 #[derive(Clone, Debug)]
 pub struct LandscapePoint {
+    /// The strategy this point refers to.
     pub strategy: TernaryStrategy,
+    /// Fitness of `strategy` under the environment the landscape was built from.
     pub fitness: f64,
 }
 
@@ -16,11 +18,15 @@ impl LandscapePoint {
     }
 }
 
-/// A saddle point between multiple peaks.
+/// A saddle point: a strategy that lies on the watershed between two or more
+/// distinct peaks (i.e. multiple peaks are reachable as uphill neighbors).
 #[derive(Clone, Debug)]
 pub struct SaddlePoint {
+    /// The strategy at the saddle.
     pub strategy: TernaryStrategy,
+    /// Fitness of `strategy`.
     pub fitness: f64,
+    /// Distinct peaks whose basins meet at this saddle.
     pub adjacent_peaks: Vec<TernaryStrategy>,
 }
 
@@ -55,13 +61,19 @@ impl FitnessLandscape {
             points.push(LandscapePoint::new(strategy, fitness));
         }
 
-        // Find peaks: strategies where no neighbor has higher fitness
+        // Find peaks: strategies where no neighbor has higher fitness.
+        // All neighbors of a same-length ternary strategy are themselves in
+        // the landscape, so the `expect` is a programming-error assertion
+        // rather than a silent fallback.
         let peaks: Vec<LandscapePoint> = points
             .iter()
             .filter(|p| {
                 let neighbors = p.strategy.neighbors();
                 neighbors.iter().all(|n| {
-                    let n_fitness = fitness_map.get(n.choices()).copied().unwrap_or(f64::NEG_INFINITY);
+                    let n_fitness = fitness_map
+                        .get(n.choices())
+                        .copied()
+                        .expect("neighbor must be present in landscape");
                     n_fitness <= p.fitness
                 })
             })
@@ -70,7 +82,7 @@ impl FitnessLandscape {
 
         let global_peak = peaks
             .iter()
-            .max_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| a.fitness.total_cmp(&b.fitness))
             .cloned();
 
         Self {
@@ -103,7 +115,8 @@ impl FitnessLandscape {
 
     /// Find saddle points: strategies adjacent to multiple distinct peaks.
     pub fn saddle_points(&self) -> Vec<SaddlePoint> {
-        let peak_strategies: Vec<&TernaryStrategy> = self.peaks.iter().map(|p| &p.strategy).collect();
+        let peak_strategies: Vec<&TernaryStrategy> =
+            self.peaks.iter().map(|p| &p.strategy).collect();
         let mut saddles = Vec::new();
 
         for point in &self.points {
@@ -141,13 +154,22 @@ impl FitnessLandscape {
     /// Find the basin of attraction for a given peak.
     ///
     /// The basin consists of all strategies that would reach this peak via
-    /// steepest-ascent hill climbing.
+    /// steepest-ascent hill climbing. Strategies whose peak is not in the
+    /// landscape return a basin containing only the peak itself.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `peak` is not present in this landscape (its fitness is
+    /// unknown). This is a programming error rather than a recoverable
+    /// condition — the landscape must have been built from the same
+    /// strategy space the peak belongs to.
     pub fn basin_of(&self, peak: &TernaryStrategy) -> Vec<TernaryStrategy> {
-        let _peak_fitness = self
-            .fitness_map
-            .get(peak.choices())
-            .copied()
-            .unwrap_or(0.0);
+        // Explicit contract check: a peak that isn't in the landscape is a
+        // caller bug. We avoid the silent `unwrap_or(0.0)` fallback that
+        // would otherwise mask it and produce a misleading basin.
+        if !self.fitness_map.contains_key(peak.choices()) {
+            panic!("basin_of: peak {} is not present in this landscape", peak);
+        }
 
         let mut basin = vec![peak.clone()];
         let mut visited = std::collections::HashSet::new();
@@ -167,6 +189,11 @@ impl FitnessLandscape {
     }
 
     /// Find which peak a strategy reaches via steepest ascent.
+    ///
+    /// Assumes `start` is a strategy present in this landscape. All neighbors
+    /// of a same-length ternary strategy are also in the landscape, so the
+    /// `expect` calls below are genuine programming-error assertions, not
+    /// silent fallbacks.
     fn steepest_ascent_target(&self, start: &TernaryStrategy) -> TernaryStrategy {
         let mut current = start.clone();
         loop {
@@ -174,13 +201,21 @@ impl FitnessLandscape {
                 .fitness_map
                 .get(current.choices())
                 .copied()
-                .unwrap_or(0.0);
+                .expect("steepest-ascent start must be present in landscape");
 
             let neighbors = current.neighbors();
             let best_neighbor = neighbors.iter().max_by(|a, b| {
-                let fa = self.fitness_map.get(a.choices()).copied().unwrap_or(f64::NEG_INFINITY);
-                let fb = self.fitness_map.get(b.choices()).copied().unwrap_or(f64::NEG_INFINITY);
-                fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
+                let fa = self
+                    .fitness_map
+                    .get(a.choices())
+                    .copied()
+                    .expect("neighbor must be present in landscape");
+                let fb = self
+                    .fitness_map
+                    .get(b.choices())
+                    .copied()
+                    .expect("neighbor must be present in landscape");
+                fa.total_cmp(&fb)
             });
 
             match best_neighbor {
@@ -189,7 +224,7 @@ impl FitnessLandscape {
                         .fitness_map
                         .get(n.choices())
                         .copied()
-                        .unwrap_or(f64::NEG_INFINITY);
+                        .expect("neighbor must be present in landscape");
                     if n_fitness > current_fitness {
                         current = n.clone();
                     } else {
@@ -230,11 +265,7 @@ mod tests {
     use super::*;
 
     fn test_env() -> Environment {
-        Environment::from_rows(&[
-            [1.0, 0.5, 2.0],
-            [3.0, 1.0, 0.0],
-            [0.0, 4.0, 1.0],
-        ])
+        Environment::from_rows(&[[1.0, 0.5, 2.0], [3.0, 1.0, 0.0], [0.0, 4.0, 1.0]])
     }
 
     #[test]
